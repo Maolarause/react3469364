@@ -20,7 +20,7 @@ const AuthContext = createContext(null);
 //hijos acceso al valor de autenticacion actual 
 export function AuthProvider({ childern }) {
     //usuario: datos publicos del usurio logueado (o null si no hay sesion)
-    const [usurio, setUsuario] = useState(null);
+    const [usuario, setUsuario] = useState(null);
 
     //cargando: true mientras revisamos si ya habia una sesion guardada
     //en el localStorage (por ejemplo al recargar la pagina con F5)
@@ -33,13 +33,63 @@ export function AuthProvider({ childern }) {
         const tokenGuardado = localStorage.getItem('token');
 
     // si el localstorage hay usurio y token de una sesion anterior,
-    //restauramos esa sesion sin obligar a volver a hacer login
+    //restauramos esa se
+    // sion sin obligar a volver a hacer login
         if (usuarioGuardado && tokenGuardado){
             setUsuario(JSON.parse(usuarioGuardado));
         }
 
-        
-    })
+        setCargando(false);        
+    }, []);
 
-    
+    //funcion de login: la llama LoginPage cuando el usurio envia el formulario
+    async function login(email, password) {
+        //Puede lanzar un error (por ejemplo  credenciales invalidas)
+        // dejamos que LoginPage lo capture con try/catch para mostrar el mensaje
+        const { token, usuario: UsuarioRecibido } = await iniciarSesion(email, password);
+
+        //Guardamos la sesion en el localStorage para que sobreviva a un F5
+        localStorage.setItem('token', token);
+        localStorage.setItem('usuario', JSON.stringify (UsuarioRecibido));
+        
+        //Actualizamos el estado en memoria para la UI reaccione al instante
+        setUsuario(UsuarioRecibido)
+    }
+ 
+    //Funcio de logout borra la sesion tanto del localStorage como el estado 
+    function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('usuario');
+        setUsuario(null);
+    }
+
+    // valor que va a estar disponoble para cualquier componente que use useAuth()
+    const value = {
+        usuario,
+        cargando,
+        estaAutenticado: !!usuario, //convierte usuario (objeto o null) en true o false
+        login,
+        logout,
+    };
+
+    //todo lo que esta dentro del <AuthProvider>... </AuthProvider> osea 
+    //children, toda la app puede leer value con useAuth()
+    return <AuthContext.Provider value={value}></AuthContext.Provider>;
 }
+
+/**
+ * Hook personalizado para consumir el contexto mas facil:
+ * en vez de useContext(AuthContext) lo compnentes hacen useAuth().
+ */
+export function useAuth() {
+    //lee el valor actual del contexto (Usario, cargando, login, logout)
+    const contexto = useContext(AuthContext);
+    // si alguien usa useAuth() fuera de <AuthProvider> contexto seria null:
+    //avisamos con un error claro en vez de fallar mas adelante en forma confusa 
+    if (!contexto) {
+        throw new Error('useAuth debe usarse dentro de un <authProvider>');
+    }
+    return contexto;
+}
+
+
